@@ -4,6 +4,11 @@
       <router-link to="/">CodeVerse</router-link>
     </div>
     
+    <div class="navbar-menu">
+      <router-link to="/" class="nav-item">首页</router-link>
+      <router-link to="/about" class="nav-item">网站介绍</router-link>
+    </div>
+    
     <div class="navbar-end">
       <el-dropdown v-if="isLoggedIn" @command="handleCommand">
         <el-avatar :size="32" :src="userInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" />
@@ -66,6 +71,23 @@ const handleCommand = async (command) => {
   font-weight: bold;
   color: #409EFF;
   text-decoration: none;
+}
+
+.navbar-menu {
+  display: flex;
+  align-items: center;
+  margin: 0 20px;
+}
+
+.nav-item {
+  color: #333;
+  text-decoration: none;
+  padding: 0 15px;
+  font-size: 16px;
+}
+
+.nav-item:hover {
+  color: #409EFF;
 }
 
 .navbar-end {
