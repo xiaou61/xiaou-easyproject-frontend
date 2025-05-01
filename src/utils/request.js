@@ -2,13 +2,17 @@ import axios from 'axios'
 
 const service = axios.create({
   baseURL: 'http://localhost:8081/uapi',
-  timeout: 10000,
+  timeout: 30000,
   withCredentials: true
 })
 
 // 请求拦截器
 service.interceptors.request.use(
   config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
     return config
   },
   error => {
@@ -21,6 +25,10 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   response => {
     const res = response.data
+    if (res.code === 401) {
+      localStorage.removeItem('token')
+      window.location.href = '/login'
+    }
     return res
   },
   error => {

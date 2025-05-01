@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+这个是一个网页端h5的项目，所以代码要是适配电脑端的
+utils下的request.js是你集成好的http请求。
+
+
+这个后端是一个satoken的项目
