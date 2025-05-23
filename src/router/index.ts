@@ -195,8 +195,14 @@ router.beforeEach((to: ToRouteType, _from, next) => {
       if (whiteList.indexOf(to.path) !== -1) {
         next();
       } else {
-        removeToken();
-        next({ path: "/login" });
+        // 检查是否有token
+        const tokenValue = localStorage.getItem('tokenValue');
+        if (tokenValue) {
+          next();
+        } else {
+          removeToken();
+          next({ path: "/login" });
+        }
       }
     } else {
       next();

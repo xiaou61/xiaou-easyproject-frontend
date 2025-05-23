@@ -5,6 +5,11 @@ type Result = {
   data: Array<any>;
 };
 
+/** 获取路由 */
 export const getAsyncRoutes = () => {
-  return http.request<Result>("get", "/get-async-routes");
+  // return http.request<Result>("get", "/get-async-routes");
+  return Promise.resolve({
+    success: true,
+    data: []
+  });
 };

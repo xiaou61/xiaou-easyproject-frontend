@@ -9,16 +9,18 @@ import { useNav } from "@/layout/hooks/useNav";
 import { useEventListener } from "@vueuse/core";
 import type { FormInstance } from "element-plus";
 import { useLayout } from "@/layout/hooks/useLayout";
-import { useUserStoreHook } from "@/store/modules/user";
+import { useUserStore } from "@/store/modules/user";
 import { initRouter, getTopMenu } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
+import { getLogin } from "@/api/user";
 
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import Lock from "~icons/ri/lock-fill";
 import User from "~icons/ri/user-3-fill";
+import { log } from "console";
 
 defineOptions({
   name: "Login"
@@ -37,37 +39,54 @@ dataThemeChange(overallStyle.value);
 const { title } = useNav();
 
 const ruleForm = reactive({
-  username: "admin",
-  password: "admin123"
+  username: "",
+  password: ""
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
-  await formEl.validate(valid => {
+  await formEl.validate(async valid => {
     if (valid) {
       loading.value = true;
-      useUserStoreHook()
-        .loginByUsername({
+      try {
+        const res = await getLogin({
           username: ruleForm.username,
           password: ruleForm.password
-        })
-        .then(res => {
-          if (res.success) {
-            // 获取后端路由
-            return initRouter().then(() => {
-              disabled.value = true;
-              router
-                .push(getTopMenu(true).path)
-                .then(() => {
-                  message("登录成功", { type: "success" });
-                })
-                .finally(() => (disabled.value = false));
-            });
-          } else {
-            message("登录失败", { type: "error" });
+        });
+        
+        if (res.data.code === 200) {
+          console.log("登录成功");
+          // 存储 Sa-Token 信息
+          const tokenInfo = res.data.data;
+          console.log(tokenInfo);
+          localStorage.setItem('tokenName', tokenInfo.tokenName);
+          localStorage.setItem('tokenValue', tokenInfo.tokenValue);
+          
+          // 获取后端路由
+          await initRouter();
+          disabled.value = true;
+          const topMenu = getTopMenu(true);
+          console.log("topMenu:", topMenu);
+          try {
+            if (topMenu && topMenu.path) {
+              await router.push(topMenu.path);
+              message("登录成功", { type: "success" });
+            } else {
+              message("路由跳转失败", { type: "error" });
+            }
+          } catch (error) {
+            console.error("路由跳转错误:", error);
+            message("路由跳转失败", { type: "error" });
           }
-        })
-        .finally(() => (loading.value = false));
+        } else {
+          message(res.data.msg || "登录失败", { type: "error" });
+        }
+      } catch (error) {
+        message("登录失败，请稍后重试", { type: "error" });
+      } finally {
+        loading.value = false;
+        disabled.value = false;
+      }
     }
   });
 };
