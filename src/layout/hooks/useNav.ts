@@ -12,6 +12,7 @@ import { useAppStoreHook } from "@/store/modules/app";
 import { useUserStoreHook } from "@/store/modules/user";
 import { useGlobal, isAllEmpty } from "@pureadmin/utils";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import { logout as logoutApi } from "@/api/user";
 import ExitFullscreen from "~icons/ri/fullscreen-exit-fill";
 import Fullscreen from "~icons/ri/fullscreen-fill";
 
@@ -80,8 +81,18 @@ export function useNav() {
   }
 
   /** 退出登录 */
-  function logout() {
-    useUserStoreHook().logOut();
+  async function logout() {
+    try {
+      await logoutApi();
+      // 清除本地存储的token
+      localStorage.removeItem('tokenName');
+      localStorage.removeItem('tokenValue');
+      useUserStoreHook().logOut();
+      // 刷新页面
+      window.location.reload();
+    } catch (error) {
+      console.error("退出登录失败:", error);
+    }
   }
 
   function backTopMenu() {
