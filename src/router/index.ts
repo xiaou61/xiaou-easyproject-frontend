@@ -16,6 +16,7 @@ import {
 import {
   ascending,
   getTopMenu,
+  addPathMatch,
   initRouter,
   isOneOfArray,
   getHistoryMode,
@@ -93,27 +94,14 @@ export const router: Router = createRouter({
   }
 });
 
-/** 重置路由 */
-export function resetRouter() {
-  router.clearRoutes();
-  for (const route of initConstantRoutes.concat(...(remainingRouter as any))) {
-    router.addRoute(route);
-  }
-  router.options.routes = formatTwoStageRoutes(
-    formatFlatteningRoutes(buildHierarchyTree(ascending(routes.flat(Infinity))))
-  );
-  usePermissionStoreHook().clearAllCachePage();
-}
-
 /** 路由白名单 */
 const whiteList = ["/login"];
 
 const { VITE_HIDE_HOME } = import.meta.env;
 
-router.beforeEach((to: ToRouteType, _from, next) => {
+router.beforeEach(async (to: ToRouteType, _from, next) => {
   if (to.meta?.keepAlive) {
     handleAliveRoute(to, "add");
-    // 页面整体刷新和点击标签页刷新
     if (_from.name === undefined || _from.name === "Redirect") {
       handleAliveRoute(to);
     }
@@ -129,89 +117,93 @@ router.beforeEach((to: ToRouteType, _from, next) => {
       else document.title = item.meta.title as string;
     });
   }
-  /** 如果已经登录并存在登录信息后不能跳转到路由白名单，而是继续保持在当前页面 */
-  function toCorrectRoute() {
-    whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
+
+  // 处理外部链接
+  if (externalLink) {
+    openLink(to?.name as string);
+    NProgress.done();
+    return;
   }
-  if (Cookies.get(multipleTabsKey) && userInfo) {
-    // 无权限跳转403页面
-    if (to.meta?.roles && !isOneOfArray(to.meta?.roles, userInfo?.roles)) {
-      next({ path: "/error/403" });
+
+  // 处理登录状态
+  const tokenValue = localStorage.getItem('tokenValue');
+  if (!tokenValue && to.path !== "/login") {
+    removeToken();
+    next({ path: "/login" });
+    return;
+  }
+
+  // 处理权限
+  if (userInfo && to.meta?.roles && !isOneOfArray(to.meta?.roles, userInfo?.roles)) {
+    next({ path: "/error/403" });
+    return;
+  }
+
+  // 处理首页隐藏
+  if (VITE_HIDE_HOME === "true" && to.fullPath === "/welcome") {
+    next({ path: "/error/404" });
+    return;
+  }
+
+  // 处理菜单和路由
+  if (tokenValue) {
+    const permissionStore = usePermissionStoreHook();
+
+    if (permissionStore.wholeMenus.length === 0) {
+      // 重新加载静态菜单
+      permissionStore.handleWholeMenus([]);
+
+      // 将菜单转为路由并注册
+      const menuRoutes = formatTwoStageRoutes(
+        formatFlatteningRoutes(buildHierarchyTree(ascending(routes.flat(Infinity))))
+      );
+      menuRoutes.forEach(route => {
+        try {
+          router.addRoute(route);
+        } catch (err) {
+          console.warn("路由重复注册：", route.name);
+        }
+      });
     }
-    // 开启隐藏首页后在浏览器地址栏手动输入首页welcome路由则跳转到404页面
-    if (VITE_HIDE_HOME === "true" && to.fullPath === "/welcome") {
-      next({ path: "/error/404" });
-    }
-    if (_from?.name) {
-      // name为超链接
-      if (externalLink) {
-        openLink(to?.name as string);
-        NProgress.done();
-      } else {
-        toCorrectRoute();
-      }
-    } else {
-      // 刷新
-      if (
-        usePermissionStoreHook().wholeMenus.length === 0 &&
-        to.path !== "/login"
-      ) {
-        initRouter().then((router: Router) => {
-          if (!useMultiTagsStoreHook().getMultiTagsCache) {
-            const { path } = to;
-            const route = findRouteByPath(
-              path,
-              router.options.routes[0].children
-            );
-            getTopMenu(true);
-            // query、params模式路由传参数的标签页不在此处处理
-            if (route && route.meta?.title) {
-              if (isAllEmpty(route.parentId) && route.meta?.backstage) {
-                // 此处为动态顶级路由（目录）
-                const { path, name, meta } = route.children[0];
-                useMultiTagsStoreHook().handleTags("push", {
-                  path,
-                  name,
-                  meta
-                });
-              } else {
-                const { path, name, meta } = route;
-                useMultiTagsStoreHook().handleTags("push", {
-                  path,
-                  name,
-                  meta
-                });
-              }
-            }
-          }
-          // 确保动态路由完全加入路由列表并且不影响静态路由（注意：动态路由刷新时router.beforeEach可能会触发两次，第一次触发动态路由还未完全添加，第二次动态路由才完全添加到路由列表，如果需要在router.beforeEach做一些判断可以在to.name存在的条件下去判断，这样就只会触发一次）
-          if (isAllEmpty(to.name)) router.push(to.fullPath);
+
+    // 初始化标签
+    if (!useMultiTagsStoreHook().getMultiTagsCache) {
+      const { path } = to;
+      const route = findRouteByPath(path, router.options.routes[0].children);
+      getTopMenu(true);
+      if (route && route.meta?.title) {
+        const targetRoute = isAllEmpty(route.parentId) && route.meta?.backstage
+          ? route.children[0]
+          : route;
+        useMultiTagsStoreHook().handleTags("push", {
+          path: targetRoute.path,
+          name: targetRoute.name,
+          meta: targetRoute.meta
         });
       }
-      toCorrectRoute();
-    }
-  } else {
-    if (to.path !== "/login") {
-      if (whiteList.indexOf(to.path) !== -1) {
-        next();
-      } else {
-        // 检查是否有token
-        const tokenValue = localStorage.getItem('tokenValue');
-        if (tokenValue) {
-          next();
-        } else {
-          removeToken();
-          next({ path: "/login" });
-        }
-      }
-    } else {
-      next();
     }
   }
+
+  // 直接放行
+  next();
 });
 
 router.afterEach(() => {
   NProgress.done();
 });
+
+/** 重置路由 */
+export function resetRouter() {
+  router.clearRoutes();
+  for (const route of initConstantRoutes.concat(...(remainingRouter as any))) {
+    router.addRoute(route);
+  }
+  router.options.routes = formatTwoStageRoutes(
+    formatFlatteningRoutes(buildHierarchyTree(ascending(routes.flat(Infinity))))
+  );
+  usePermissionStoreHook().clearAllCachePage();
+  usePermissionStoreHook().handleWholeMenus([]);
+  addPathMatch();
+}
 
 export default router;

@@ -1,26 +1,25 @@
 <script setup lang="ts">
 import Motion from "./utils/motion";
-import { useRouter } from "vue-router";
-import { message } from "@/utils/message";
-import { loginRules } from "./utils/rule";
-import { ref, reactive, toRaw } from "vue";
-import { debounce } from "@pureadmin/utils";
-import { useNav } from "@/layout/hooks/useNav";
-import { useEventListener } from "@vueuse/core";
-import type { FormInstance } from "element-plus";
-import { useLayout } from "@/layout/hooks/useLayout";
-import { useUserStore } from "@/store/modules/user";
-import { initRouter, getTopMenu } from "@/router/utils";
-import { bg, avatar, illustration } from "./utils/static";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
-import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
-import { getLogin } from "@/api/user";
+import {useRouter} from "vue-router";
+import {message} from "@/utils/message";
+import {loginRules} from "./utils/rule";
+import {reactive, ref, toRaw} from "vue";
+import {debounce} from "@pureadmin/utils";
+import {useNav} from "@/layout/hooks/useNav";
+import {useEventListener} from "@vueuse/core";
+import type {FormInstance} from "element-plus";
+import {useLayout} from "@/layout/hooks/useLayout";
+import {addPathMatch, getTopMenu} from "@/router/utils";
+import {avatar, bg, illustration} from "./utils/static";
+import {useRenderIcon} from "@/components/ReIcon/src/hooks";
+import {useDataThemeChange} from "@/layout/hooks/useDataThemeChange";
+import {getLogin} from "@/api/user";
+import {usePermissionStoreHook} from "@/store/modules/permission";
 
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import Lock from "~icons/ri/lock-fill";
 import User from "~icons/ri/user-3-fill";
-import { log } from "console";
 
 defineOptions({
   name: "Login"
@@ -53,7 +52,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           username: ruleForm.username,
           password: ruleForm.password
         });
-        
+
         if (res.data.code === 200) {
           console.log("登录成功");
           // 存储 Sa-Token 信息
@@ -61,21 +60,15 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           console.log(tokenInfo);
           localStorage.setItem('tokenName', tokenInfo.tokenName);
           localStorage.setItem('tokenValue', tokenInfo.tokenValue);
-          
-          // 获取后端路由
-          await initRouter();
-          disabled.value = true;
+
+          // 全部采取静态路由模式
+          usePermissionStoreHook().handleWholeMenus([]);
+          addPathMatch();
           const topMenu = getTopMenu(true);
-          console.log("topMenu:", topMenu);
-          try {
-            if (topMenu && topMenu.path) {
-              await router.push(topMenu.path);
-              message("登录成功", { type: "success" });
-            } else {
-              message("路由跳转失败", { type: "error" });
-            }
-          } catch (error) {
-            console.error("路由跳转错误:", error);
+          if (topMenu && topMenu.path) {
+            await router.push(topMenu.path);
+            message("登录成功", { type: "success" });
+          } else {
             message("路由跳转失败", { type: "error" });
           }
         } else {
